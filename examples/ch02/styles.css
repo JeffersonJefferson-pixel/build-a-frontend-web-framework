@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,700;1,400&display=swap');
+
+body {
+    font-family: 'Roboto', sans-serif;
+    width: 500px;
+    margin: 2em auto;
+}
+
+label {
+    display: block;
+    font-style: italic;
+    margin-bottom: 0.25em
+}
+
+h1 {
+    font-size: "3.5rem"
+}
+
+button,
+input {
+    font-family: inherit;
+    padding: 0.25em 0.5em;
+    font-size: 1rem;
+}
+
+button:disabled{
+    transition: color 0.5 ease-out;
+}
+
+button:enabled {
+    transition: color 0.5 ease-out;
+}
+
+.done {
+    text-decoration: line-through;
+}
