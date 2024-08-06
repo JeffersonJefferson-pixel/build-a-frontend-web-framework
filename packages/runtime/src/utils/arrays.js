@@ -1,3 +1,3 @@
 export function withoutNulls(arr) {
-    return arr.filter((item) => item != null);
+  return arr.filter((item) => item != null);
 }
