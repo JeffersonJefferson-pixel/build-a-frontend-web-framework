@@ -132,7 +132,7 @@ function setAttributes(el, attrs) {
     });
   }
   for (const [name, value] of Object.entries(otherAttrs)) {
-    setAttributes(el, name);
+    setAttribute(el, name, value);
   }
 }
 function setClass(el, className) {
@@ -146,6 +146,19 @@ function setClass(el, className) {
 }
 function setStyle(el, name, value) {
   el.style[name] = value;
+}
+function setAttribute(el, name, value) {
+  if (value == null) {
+    removeAttribute(el, name);
+  } else if (name.startsWith("data-")) {
+    el.setAttribute(name, value);
+  } else {
+    el[name] = value;
+  }
+}
+function removeAttribute(el, name) {
+  el[name] = null;
+  el.removeAttribute(name);
 }
 
 function mountDOM(vdom, parentEl) {
