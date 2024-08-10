@@ -32,6 +32,28 @@ export function hFragment(vNodes) {
   };
 }
 
+export function extractChildren(vdom) {
+  // if the node has no children, returns an empty array
+  if (vdom.children == null) {
+    return []
+  }
+
+  const children = []
+
+  // iterates over the children
+  for (const child of vdom.children) {
+    if (child.type === DOM_TYPES.FRAGMENT) {
+      // extracts it children recursively
+      children.push(...extractChildren(child, children))
+    } else {
+      // adds the child to the array
+      children.push(child)
+    }
+  }
+
+  return children
+}
+
 export function lipsum(n) {
   const text = `Lorem ipsum dolor sit amet, consectetur adipisc
     ing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
