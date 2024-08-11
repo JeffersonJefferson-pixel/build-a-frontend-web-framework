@@ -158,26 +158,38 @@ function patchChildren(oldVdom, newVdom) {
   const diffSeq = arraysDiffSequence(oldChildren, newChildren, areNodesEqual)
 
   for (const operation of diffSeq) {
-    const { orginalIndex, index, item } = operation 
+    const { originalIndex, index, item } = operation 
 
     switch (operation.op) {
       case ARRAY_DIFF_OP.ADD: {
-        // TODO: implement
+        mountDOM(item, parentEl, index)
         break
       }
 
       case ARRAY_DIFF_OP.REMOVE: {
-        // TODO: implement
+        destroyDOM(item)
         break
       }
 
       case ARRAY_DIFF_OP.MOVE: {
-        // TODO: implement
+        // gets old virtual node at the original index
+        const oldChild = oldChildren[originalIndex]
+        // gets the new virtual node at the new index
+        const newChild = newChildren[index]
+        // gets the dom element associated with the moved node
+        const el = oldChild.el
+        // finds the element at the target index inside the parent element
+        const elAtTargetIndex = parentEl.childNodes[index]
+
+        // inserts the moved element before the target element
+        parentEl.insertBefore(el, elAtTargetIndex)
+        // recursively patches the moved element 
+        patchDOM(oldChild, newChild, parentEl)
         break
       }
 
       case ARRAY_DIFF_OP.NOOP: {
-        // TODO: implement
+        patchDOM(oldChildren[originalIndex], newChildren[index], parentEl)
         break
       }
     }

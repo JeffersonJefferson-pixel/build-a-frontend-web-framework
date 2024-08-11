@@ -20,7 +20,6 @@ addTodoInput.addEventListener('input', () => {
 }) 
 
 addTodoInput.addEventListener('keydown', ({ key }) => {
-    console.log('here:', key)
     if (key === 'Enter' && addTodoInput.value.length >= 3) {
 
         addTodo()
