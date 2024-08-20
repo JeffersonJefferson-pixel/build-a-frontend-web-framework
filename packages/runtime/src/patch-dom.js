@@ -9,7 +9,7 @@ import { isNotBlankOrEmptyString } from './utils/strings'
 import { removeStyle, setStyle } from "./attributes";
 import { addEventListener } from "./events";
 
-export function patchDOM(oldVdom, newVdom, parentEl) {
+export function patchDOM(oldVdom, newVdom, parentEl, hostComponent = null) {
   if (!areNodesEqual(oldVdom, newVdom)) {
     // finds the index in the parent node where the old node is
     const index = findIndexInParent(parentEl, oldVdom.el)
@@ -37,7 +37,7 @@ export function patchDOM(oldVdom, newVdom, parentEl) {
     }
   }
 
-  patchChildren(oldVdom, newVdom)
+  patchChildren(oldVdom, newVdom, hostComponent)
 
   return newVdom
 }
@@ -148,7 +148,7 @@ function patchEvents(el, oldListeners = {}, oldEvents = {}, newEvents = {}) {
   return addedListeners
 }
 
-function patchChildren(oldVdom, newVdom) {
+function patchChildren(oldVdom, newVdom, hostComponent) {
   // extract children araray
   const oldChildren = extractChildren(oldVdom)
   const newChildren = extractChildren(newVdom)
@@ -158,11 +158,12 @@ function patchChildren(oldVdom, newVdom) {
   const diffSeq = arraysDiffSequence(oldChildren, newChildren, areNodesEqual)
 
   for (const operation of diffSeq) {
-    const { originalIndex, index, item } = operation 
+    const { originalIndex, index, item } = operation
+    const offset = hostComponent?.offset ?? 0
 
     switch (operation.op) {
       case ARRAY_DIFF_OP.ADD: {
-        mountDOM(item, parentEl, index)
+        mountDOM(item, parentEl, index + offset, hostComponent)
         break
       }
 
@@ -184,12 +185,12 @@ function patchChildren(oldVdom, newVdom) {
         // inserts the moved element before the target element
         parentEl.insertBefore(el, elAtTargetIndex)
         // recursively patches the moved element 
-        patchDOM(oldChild, newChild, parentEl)
+        patchDOM(oldChild, newChild, parentEl, hostComponent)
         break
       }
 
       case ARRAY_DIFF_OP.NOOP: {
-        patchDOM(oldChildren[originalIndex], newChildren[index], parentEl)
+        patchDOM(oldChildren[originalIndex], newChildren[index], parentEl, hostComponent)
         break
       }
     }

@@ -395,7 +395,7 @@ function isNotBlankOrEmptyString(str) {
   return isNotEmptyString(str.trim())
 }
 
-function patchDOM(oldVdom, newVdom, parentEl) {
+function patchDOM(oldVdom, newVdom, parentEl, hostComponent = null) {
   if (!areNodesEqual(oldVdom, newVdom)) {
     const index = findIndexInParent(parentEl, oldVdom.el);
     destroyDOM(oldVdom);
@@ -413,7 +413,7 @@ function patchDOM(oldVdom, newVdom, parentEl) {
       break
     }
   }
-  patchChildren(oldVdom, newVdom);
+  patchChildren(oldVdom, newVdom, hostComponent);
   return newVdom
 }
 function findIndexInParent(parentEl, el) {
@@ -492,16 +492,17 @@ function patchEvents(el, oldListeners = {}, oldEvents = {}, newEvents = {}) {
   }
   return addedListeners
 }
-function patchChildren(oldVdom, newVdom) {
+function patchChildren(oldVdom, newVdom, hostComponent) {
   const oldChildren = extractChildren(oldVdom);
   const newChildren = extractChildren(newVdom);
   const parentEl = oldVdom.el;
   const diffSeq = arraysDiffSequence(oldChildren, newChildren, areNodesEqual);
   for (const operation of diffSeq) {
     const { originalIndex, index, item } = operation;
+    const offset = hostComponent?.offset ?? 0;
     switch (operation.op) {
       case ARRAY_DIFF_OP.ADD: {
-        mountDOM(item, parentEl, index);
+        mountDOM(item, parentEl, index + offset);
         break
       }
       case ARRAY_DIFF_OP.REMOVE: {
@@ -514,11 +515,11 @@ function patchChildren(oldVdom, newVdom) {
         const el = oldChild.el;
         const elAtTargetIndex = parentEl.childNodes[index];
         parentEl.insertBefore(el, elAtTargetIndex);
-        patchDOM(oldChild, newChild, parentEl);
+        patchDOM(oldChild, newChild, parentEl, hostComponent);
         break
       }
       case ARRAY_DIFF_OP.NOOP: {
-        patchDOM(oldChildren[originalIndex], newChildren[index], parentEl);
+        patchDOM(oldChildren[originalIndex], newChildren[index], parentEl, hostComponent);
         break
       }
     }
