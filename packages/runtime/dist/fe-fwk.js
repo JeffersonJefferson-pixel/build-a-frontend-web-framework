@@ -1,19 +1,24 @@
-function addEventListener(eventName, handler, el) {
-  el.addEventListener(eventName, handler);
+function addEventListener(eventName, handler, el, hostComponent) {
+  function boundHandler() {
+    hostComponent
+      ? handler.apply(hostComponent, arguments)
+      : handler(...arguments);
+  }
+  el.addEventListener(eventName, boundHandler);
   return handler;
 }
-function addEventListeners(listeners = {}, el) {
+function addEventListeners(listeners = {}, el, hostComponent = null) {
   const addedListeners = {};
   Object.entries(listeners).forEach(([eventName, handler]) => {
-    const listener = addEventListener(eventName, handler, el);
+    const listener = addEventListener(eventName, handler, el, hostComponent);
     addedListeners[eventName] = listener;
   });
   return addedListeners;
 }
 function removeEventListeners(listeners = {}, el) {
-    Object.entries(listeners).forEach(([eventName, handler]) => {
-        el.removeEventListener(eventName, handler);
-    });
+  Object.entries(listeners).forEach(([eventName, handler]) => {
+    el.removeEventListener(eventName, handler);
+  });
 }
 
 const ARRAY_DIFF_OP = {
@@ -306,18 +311,18 @@ function removeAttribute(el, name) {
   el.removeAttribute(name);
 }
 
-function mountDOM(vdom, parentEl, index) {
+function mountDOM(vdom, parentEl, index, hostComponent = null) {
   switch (vdom.type) {
     case DOM_TYPES.TEXT: {
       createTextNode(vdom, parentEl, index);
       break;
     }
     case DOM_TYPES.ELEMENT: {
-      createElementNode(vdom, parentEl, index);
+      createElementNode(vdom, parentEl, index, hostComponent);
       break;
     }
     case DOM_TYPES.FRAGMENT: {
-      createFragmentNodes(vdom, parentEl, index);
+      createFragmentNodes(vdom, parentEl, index, hostComponent);
       break;
     }
     default: {
@@ -331,22 +336,22 @@ function createTextNode(vdom, parentEl, index) {
   vdom.el = textNode;
   insert(textNode, parentEl, index);
 }
-function createFragmentNodes(vdom, parentEl, index) {
+function createFragmentNodes(vdom, parentEl, index, hostComponent) {
   const { children } = vdom;
   vdom.el = parentEl;
-  children.forEach((child, i) => mountDOM(child, parentEl, index ? index + i : null));
+  children.forEach((child, i) => mountDOM(child, parentEl, index ? index + i : null, hostComponent));
 }
-function createElementNode(vdom, parentEl, index) {
+function createElementNode(vdom, parentEl, index, hostComponent) {
   const { tag, props, children } = vdom;
   const element = document.createElement(tag);
-  addProps(element, props, vdom);
+  addProps(element, props, vdom, hostComponent);
   vdom.el = element;
-  children.forEach((child) => mountDOM(child, element));
+  children.forEach((child) => mountDOM(child, element, hostComponent));
   insert(element, parentEl, index);
 }
-function addProps(el, props, vdom) {
+function addProps(el, props, vdom, hostComponent) {
   const { on: events, ...attrs } = props;
-  vdom.listeners = addEventListeners(events, el);
+  vdom.listeners = addEventListeners(events, el, hostComponent);
   setAttributes(el, attrs);
 }
 function insert(el, parentEl, index) {
@@ -399,29 +404,29 @@ function patchDOM(oldVdom, newVdom, parentEl, hostComponent = null) {
   if (!areNodesEqual(oldVdom, newVdom)) {
     const index = findIndexInParent(parentEl, oldVdom.el);
     destroyDOM(oldVdom);
-    mountDOM(newVdom, parentEl, index);
-    return newVdom
+    mountDOM(newVdom, parentEl, index, hostComponent);
+    return newVdom;
   }
   newVdom.el = oldVdom.el;
   switch (newVdom.type) {
     case DOM_TYPES.TEXT: {
       patchText(oldVdom, newVdom);
-      return newVdom
+      return newVdom;
     }
     case DOM_TYPES.ELEMENT: {
-      patchElement(oldVdom, newVdom);
-      break
+      patchElement(oldVdom, newVdom, hostComponent);
+      break;
     }
   }
   patchChildren(oldVdom, newVdom, hostComponent);
-  return newVdom
+  return newVdom;
 }
 function findIndexInParent(parentEl, el) {
   const index = Array.from(parentEl.childNodes).indexOf(el);
   if (index < 0) {
-    return null
+    return null;
   }
-  return index
+  return index;
 }
 function patchText(oldVdom, newVdom) {
   const el = oldVdom.el;
@@ -431,7 +436,7 @@ function patchText(oldVdom, newVdom) {
     el.nodeValue = newText;
   }
 }
-function patchElement(oldVdom, newVdom) {
+function patchElement(oldVdom, newVdom, hostComponent) {
   const el = oldVdom.el;
   const {
     class: oldClass,
@@ -449,7 +454,7 @@ function patchElement(oldVdom, newVdom) {
   patchAttrs(el, oldAttrs, newAttrs);
   patchClasses(el, oldClass, newClass);
   patchStyles(el, oldStyle, newStyle);
-  newVdom.listeners = patchEvents(el, oldListeners, oldEvents, newEvents);
+  newVdom.listeners = patchEvents(el, oldListeners, oldEvents, newEvents, hostComponent);
 }
 function patchAttrs(el, oldAttrs, newAttrs) {
   const { added, removed, updated } = objectsDiff(oldAttrs, newAttrs);
@@ -480,17 +485,17 @@ function patchStyles(el, oldStyle = {}, newStyle = {}) {
     setStyle(el, style, newStyle[style]);
   }
 }
-function patchEvents(el, oldListeners = {}, oldEvents = {}, newEvents = {}) {
+function patchEvents(el, oldListeners = {}, oldEvents = {}, newEvents = {}, hostComponent) {
   const { removed, added, updated } = objectsDiff(oldEvents, newEvents);
   for (const eventName of removed.concat(updated)) {
     el.removeEventListener(eventName, oldListeners[eventName]);
   }
   const addedListeners = {};
   for (const eventName of added.concat(updated)) {
-    const listener = addEventListener(eventName, newEvents[eventName], el);
+    const listener = addEventListener(eventName, newEvents[eventName], el, hostComponent);
     addedListeners[eventName] = listener;
   }
-  return addedListeners
+  return addedListeners;
 }
 function patchChildren(oldVdom, newVdom, hostComponent) {
   const oldChildren = extractChildren(oldVdom);
@@ -502,12 +507,12 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
     const offset = hostComponent?.offset ?? 0;
     switch (operation.op) {
       case ARRAY_DIFF_OP.ADD: {
-        mountDOM(item, parentEl, index + offset);
-        break
+        mountDOM(item, parentEl, index + offset, hostComponent);
+        break;
       }
       case ARRAY_DIFF_OP.REMOVE: {
         destroyDOM(item);
-        break
+        break;
       }
       case ARRAY_DIFF_OP.MOVE: {
         const oldChild = oldChildren[originalIndex];
@@ -516,19 +521,25 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
         const elAtTargetIndex = parentEl.childNodes[index];
         parentEl.insertBefore(el, elAtTargetIndex);
         patchDOM(oldChild, newChild, parentEl, hostComponent);
-        break
+        break;
       }
       case ARRAY_DIFF_OP.NOOP: {
-        patchDOM(oldChildren[originalIndex], newChildren[index], parentEl, hostComponent);
-        break
+        patchDOM(
+          oldChildren[originalIndex],
+          newChildren[index],
+          parentEl,
+          hostComponent
+        );
+        break;
       }
     }
   }
 }
-function toClassList(classes = '') {
+function toClassList(classes = "") {
   return Array.isArray(classes)
     ? classes.filter(isNotBlankOrEmptyString)
-    : classes.split(/(\s+)/).filter(isNotBlankOrEmptyString)
+    :
+      classes.split(/(\s+)/).filter(isNotBlankOrEmptyString);
 }
 
 function createApp({ state, view, reducers = {} }) {
