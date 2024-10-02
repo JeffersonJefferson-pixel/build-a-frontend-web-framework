@@ -157,13 +157,15 @@ const DOM_TYPES = {
   TEXT: "text",
   ELEMENT: "element",
   FRAGMENT: "fragment",
+  COMPONENT: "component"
 };
 function h(tag, props = {}, children = []) {
+  const type = typeof tag === 'string' ? DOM_TYPES.ELEMENT : DOM_TYPES.COMPONENT;
   return {
     tag,
     props,
+    type,
     children: mapTextNodes(withoutNulls(children)),
-    type: DOM_TYPES.ELEMENT,
   };
 }
 function mapTextNodes(children) {
@@ -209,6 +211,10 @@ function destroyDOM(vdom) {
     case DOM_TYPES.FRAGMENT: {
       removeFragmentNodes(vdom);
       break
+    }
+    case DOM_TYPES.COMPONENT: {
+      vdom.component.unmount();
+      break;
     }
     default: {
       throw new Error(`Can't destroy DOM of type: ${type}`)
@@ -325,6 +331,10 @@ function mountDOM(vdom, parentEl, index, hostComponent = null) {
       createFragmentNodes(vdom, parentEl, index, hostComponent);
       break;
     }
+    case DOM_TYPES.COMPONENT: {
+      createComponentNode(vdom, parentEl, index);
+      break;
+    }
     default: {
       throw new Error(`Can't mount DOM of type: ${vdom.type}`);
     }
@@ -348,6 +358,14 @@ function createElementNode(vdom, parentEl, index, hostComponent) {
   vdom.el = element;
   children.forEach((child) => mountDOM(child, element, hostComponent));
   insert(element, parentEl, index);
+}
+function createComponentNode(vdom, parentEl, index, hostComponent) {
+  const Component = vdom.tag;
+  const props = vdom.props;
+  const component = new Component(props);
+  component.mount(parentEl, index);
+  vdom.component = component;
+  vdom.el = component.firstElement;
 }
 function addProps(el, props, vdom, hostComponent) {
   const { on: events, ...attrs } = props;
@@ -415,6 +433,10 @@ function patchDOM(oldVdom, newVdom, parentEl, hostComponent = null) {
     }
     case DOM_TYPES.ELEMENT: {
       patchElement(oldVdom, newVdom, hostComponent);
+      break;
+    }
+    case DOM_TYPES.COMPONENT: {
+      patchComponent(oldVdom, newVdom);
       break;
     }
   }
@@ -534,6 +556,13 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
       }
     }
   }
+}
+function patchComponent(oldVdom, newVdom) {
+  const { component } = oldVdom;
+  const { props } = newVdom;
+  component.updateProps(props);
+  newVdom.component = component;
+  newVdom.el = component.firstElement;
 }
 function toClassList(classes = "") {
   return Array.isArray(classes)

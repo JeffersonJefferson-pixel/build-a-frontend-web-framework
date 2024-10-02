@@ -7,7 +7,7 @@ export function destroyDOM(vdom) {
   switch (type) {
     case DOM_TYPES.TEXT: {
       removeTextNode(vdom)
-      break 
+      break
     }
 
     case DOM_TYPES.ELEMENT: {
@@ -18,6 +18,11 @@ export function destroyDOM(vdom) {
     case DOM_TYPES.FRAGMENT: {
       removeFragmentNodes(vdom)
       break
+    }
+
+    case DOM_TYPES.COMPONENT: {
+      vdom.component.unmount();
+      break;
     }
 
     default: {
@@ -31,10 +36,10 @@ export function destroyDOM(vdom) {
 function removeTextNode(vdom) {
   const { el } = vdom
   el.remove()
-} 
+}
 
 function removeElementNode(vdom) {
-  const { el, children, listeners } = vdom 
+  const { el, children, listeners } = vdom
 
   el.remove()
   children.forEach(destroyDOM)
@@ -46,6 +51,6 @@ function removeElementNode(vdom) {
 }
 
 function removeFragmentNodes(vdom) {
-  const { children } = vdom 
+  const { children } = vdom
   children.forEach(destroyDOM)
 }

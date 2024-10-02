@@ -35,6 +35,11 @@ export function patchDOM(oldVdom, newVdom, parentEl, hostComponent = null) {
       patchElement(oldVdom, newVdom, hostComponent);
       break;
     }
+
+    case DOM_TYPES.COMPONENT: {
+      patchComponent(oldVdom, newVdom);
+      break;
+    }
   }
 
   patchChildren(oldVdom, newVdom, hostComponent);
@@ -200,6 +205,17 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
       }
     }
   }
+}
+
+function patchComponent(oldVdom, newVdom) {
+  // extract component and props from virtual node.
+  const { component } = oldVdom;
+  const { props } = newVdom;
+  // update component's props.
+  component.updateProps(props);
+
+  newVdom.component = component;
+  newVdom.el = component.firstElement;
 }
 
 function toClassList(classes = "") {

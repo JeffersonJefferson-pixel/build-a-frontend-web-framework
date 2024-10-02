@@ -19,6 +19,11 @@ export function mountDOM(vdom, parentEl, index, hostComponent = null) {
       break;
     }
 
+    case DOM_TYPES.COMPONENT: {
+      createComponentNode(vdom, parentEl, index, hostComponent);
+      break;
+    }
+
     default: {
       throw new Error(`Can't mount DOM of type: ${vdom.type}`);
     }
@@ -50,6 +55,19 @@ function createElementNode(vdom, parentEl, index, hostComponent) {
 
   children.forEach((child) => mountDOM(child, element, hostComponent));
   insert(element, parentEl, index)
+}
+
+function createComponentNode(vdom, parentEl, index, hostComponent) {
+  // extract component from virtual node.
+  const Component = vdom.tag;
+  const props = vdom.props;
+  // instantiate component.
+  const component = new Component(props);
+
+  // mount component.
+  component.mount(parentEl, index);
+  vdom.component = component;
+  vdom.el = component.firstElement;
 }
 
 function addProps(el, props, vdom, hostComponent) {

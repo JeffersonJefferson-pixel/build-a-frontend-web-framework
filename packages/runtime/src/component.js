@@ -3,6 +3,7 @@ import { DOM_TYPES, extractChildren } from "./h";
 import { mountDOM } from "./mount-dom";
 import { patchDOM } from "./patch-dom";
 import { hasOwnProperty } from "./utils/objects";
+import equal from 'fast-deep-equal';
 
 export function defineComponent({ render, state, ...methods }) {
   class Component {
@@ -22,7 +23,14 @@ export function defineComponent({ render, state, ...methods }) {
 
       // return elements inside the fragment
       if (this.#vdom.type === DOM_TYPES.FRAGMENT) {
-        return extractChildren(this.#vdom).map((child) => child.el);
+        return extractChildren(this.#vdom).flatMap((child) => {
+          if (child.type === DOM_TYPES.COMPONENT) {
+            // get elements recursively.
+            return child.component.elements;
+          }
+
+          return [child.el];
+        });
       }
 
       return [this.#vdom.el];
@@ -44,6 +52,18 @@ export function defineComponent({ render, state, ...methods }) {
       // merge new state with current state
       this.state = { ...this.state, ...state };
       // patch based on new state
+      this.#patch();
+    }
+
+    updateProps(props) {
+      // merge props.
+      const newProps = { ...this.props, ...props };
+      // compare old and new props.
+      if (equal(this.props, newProps)) {
+        return
+      }
+      this.props = newProps;
+      // re-render.
       this.#patch();
     }
 
