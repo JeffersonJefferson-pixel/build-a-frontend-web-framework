@@ -4,16 +4,28 @@ import { mountDOM } from "./mount-dom";
 import { patchDOM } from "./patch-dom";
 import { hasOwnProperty } from "./utils/objects";
 import equal from 'fast-deep-equal';
+import { Dispatcher } from './dispatcher';
 
 export function defineComponent({ render, state, ...methods }) {
   class Component {
     #isMounted = false;
     #vdom = null;
     #hostEl = null;
+    #eventHandlers = null;
+    #parentComponent = null;
+    #dispatcher = new Dispatcher();
+    // array of unsubscribe functions.
+    #subscriptions = [];
 
-    constructor(props = {}) {
+    constructor(
+      props = {}, 
+      eventHandlers = {},
+      parentComponent = null
+    ) {
       this.props = props;
       this.state = state ? state(props) : {};
+      this.#eventHandlers = eventHandlers;
+      this.#parentComponent = parentComponent
     }
 
     get elements() {
@@ -81,6 +93,8 @@ export function defineComponent({ render, state, ...methods }) {
       this.#vdom = this.render();
       // call mountDOM function to mount component view
       mountDOM(this.#vdom, hostEl, index, this);
+      // wire event handlers when component is mounted.
+      this.#wireEventHandlers();
       this.#hostEl = hostEl;
       this.#isMounted = true;
     }
@@ -93,10 +107,16 @@ export function defineComponent({ render, state, ...methods }) {
 
       // call destroyDOM function to unmount component's view
       destroyDOM(this.#vdom);
+      this.#subscriptions.forEach((unsubcribe) => unsubcribe())
 
       this.#vdom = null;
       this.#hostEl = null;
       this.#isMounted = false;
+      this.#subscriptions = []
+    }
+
+    emit(eventName, payload) {
+      this.#dispatcher.dispatch(eventName, payload);
     }
 
     #patch() {
@@ -109,6 +129,26 @@ export function defineComponent({ render, state, ...methods }) {
       const vdom = this.render();
       // patch DOM
       this.#vdom = patchDOM(this.#vdom, vdom, this.#hostEl, this);
+    }
+
+    #wireEventHandlers() {
+      // iterate over event handler object
+      this.#subscriptions = Object.entries(this.#eventHandlers).map(
+        ([eventName, handler]) => 
+          this.#wireEventHandler(eventName, handler)
+      )
+    }
+
+    // subscribe event handler to component's dispatcher.
+    #wireEventHandler(eventName, hanlder) {
+      return this.#dispatcher.subscribe(eventName, (payload) => {
+        if (this.#parentComponent) {
+          // bind the element handler context to parent component.
+          hanlder.call(this.#parentComponent, payload);
+        } else {
+          hanlder(payload);
+        }
+      });
     }
   }
 

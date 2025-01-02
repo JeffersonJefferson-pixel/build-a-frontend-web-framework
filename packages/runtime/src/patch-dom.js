@@ -6,6 +6,7 @@ import { objectsDiff } from "./utils/objects";
 import { removeAttribute, setAttribute } from "./attributes";
 import { arraysDiff, arraysDiffSequence, ARRAY_DIFF_OP } from "./utils/arrays";
 import { isNotBlankOrEmptyString } from "./utils/strings";
+import { extractPropsAndEvents } from "./utils/props";
 import { removeStyle, setStyle } from "./attributes";
 import { addEventListener } from "./events";
 
@@ -210,7 +211,8 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
 function patchComponent(oldVdom, newVdom) {
   // extract component and props from virtual node.
   const { component } = oldVdom;
-  const { props } = newVdom;
+  // extract props.
+  const { props } = extractPropsAndEvent(newVdom);
   // update component's props.
   component.updateProps(props);
 

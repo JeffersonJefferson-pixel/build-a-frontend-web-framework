@@ -1,3 +1,4 @@
+import { extractPropsAndEvents } from "./utils/props";
 import { DOM_TYPES } from "./h";
 import { setAttributes } from "./attributes";
 import { addEventListeners } from "./events";
@@ -60,9 +61,10 @@ function createElementNode(vdom, parentEl, index, hostComponent) {
 function createComponentNode(vdom, parentEl, index, hostComponent) {
   // extract component from virtual node.
   const Component = vdom.tag;
-  const props = vdom.props;
+  // extract props and events.
+  const { props, events  } = extractPropsAndEvents(vdom);
   // instantiate component.
-  const component = new Component(props);
+  const component = new Component(props, events, hostComponent);
 
   // mount component.
   component.mount(parentEl, index);
