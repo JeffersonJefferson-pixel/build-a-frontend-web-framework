@@ -240,38 +240,10 @@ function removeFragmentNodes(vdom) {
   children.forEach(destroyDOM);
 }
 
-class Dispatcher {
-  #subs = new Map()
-  #afterHandlers = []
-  subscribe(commandName, handler) {
-    if (!this.#subs.has(commandName)) {
-      this.#subs.set(commandName, []);
-    }
-    const handlers = this.#subs.get(commandName);
-    if (handlers.includes(handler)) {
-      return () => {}
-    }
-    handlers.push(handler);
-    return () => {
-      const idx = handlers.indexOf(handler);
-      handlers.splice(idx, 1);
-    }
-  }
-  afterEveryCommand(handler) {
-    this.#afterHandlers.push(handler);
-    return () => {
-      const idx = this.#afterHandlers.indexOf(handler);
-      this.#afterHandlers.splice(idx, 1);
-    }
-  }
-  dispatch(commandName, payload) {
-    if (this.#subs.has(commandName)) {
-      this.#subs.get(commandName).forEach((handler) => handler(payload));
-    } else {
-      console.warn(`No handlers for command: ${commandName}`);
-    }
-    this.#afterHandlers.forEach((handler) => handler());
-  }
+function extractPropsAndEvents(vdom) {
+  const { on: events = {}, ...props } = vdom.props;
+  delete props.key;
+  return { props, events };
 }
 
 function setAttributes(el, attrs) {
@@ -332,7 +304,7 @@ function mountDOM(vdom, parentEl, index, hostComponent = null) {
       break;
     }
     case DOM_TYPES.COMPONENT: {
-      createComponentNode(vdom, parentEl, index);
+      createComponentNode(vdom, parentEl, index, hostComponent);
       break;
     }
     default: {
@@ -352,23 +324,23 @@ function createFragmentNodes(vdom, parentEl, index, hostComponent) {
   children.forEach((child, i) => mountDOM(child, parentEl, index ? index + i : null, hostComponent));
 }
 function createElementNode(vdom, parentEl, index, hostComponent) {
-  const { tag, props, children } = vdom;
+  const { tag, children } = vdom;
   const element = document.createElement(tag);
-  addProps(element, props, vdom, hostComponent);
+  addProps(element, vdom, hostComponent);
   vdom.el = element;
   children.forEach((child) => mountDOM(child, element, hostComponent));
   insert(element, parentEl, index);
 }
 function createComponentNode(vdom, parentEl, index, hostComponent) {
   const Component = vdom.tag;
-  const props = vdom.props;
-  const component = new Component(props);
+  const { props, events  } = extractPropsAndEvents(vdom);
+  const component = new Component(props, events, hostComponent);
   component.mount(parentEl, index);
   vdom.component = component;
   vdom.el = component.firstElement;
 }
-function addProps(el, props, vdom, hostComponent) {
-  const { on: events, ...attrs } = props;
+function addProps(el, vdom, hostComponent) {
+  const { props: attrs, events } = extractPropsAndEvents(vdom);
   vdom.listeners = addEventListeners(events, el, hostComponent);
   setAttributes(el, attrs);
 }
@@ -387,16 +359,62 @@ function insert(el, parentEl, index) {
   }
 }
 
+function createApp(RootComponent, props = {}) {
+  let parentEl = null;
+  let isMounted = false;
+  let vdom = null;
+  function reset() {
+    parentEl = null;
+    isMounted = false;
+    vdom = null;
+  }
+  return {
+    mount(_parentEl) {
+      if (isMounted) {
+        throw new Error('This application is already mounted')
+      }
+      parentEl = _parentEl;
+      vdom = h(RootComponent, props);
+      mountDOM(vdom, parentEl);
+      isMounted = true;
+    },
+    unmount() {
+      if (!isMounted) {
+        throw new Error('The application is not mounted')
+      }
+      destroyDOM(vdom);
+      reset();
+    }
+  }
+}
+
 function areNodesEqual(nodeOne, nodeTwo) {
   if (nodeOne.type !== nodeTwo.type) {
-    return false
+    return false;
   }
   if (nodeOne.type === DOM_TYPES.ELEMENT) {
-    const { tag: tagOne } = nodeOne;
-    const { tag: tagTwo } = nodeTwo;
-    return tagOne === tagTwo
+    const {
+      tag: tagOne,
+      props: { key: keyOne }
+    } = nodeOne;
+    const {
+      tag: tagTwo,
+      props: { key: keyTwo }
+    } = nodeTwo;
+    return tagOne === tagTwo && keyOne === keyTwo ;
   }
-  return true
+  if (nodeOne.type === DOM_TYPES.COMPONENT) {
+    const {
+      tag: componentOne,
+      props: { key: keyOne }
+    } = nodeOne;
+    const {
+      tag: componentTwo,
+      props: { key: keyTwo }
+    } = nodeTwo;
+    return componentOne === componentTwo && keyOne === keyTwo;
+  }
+  return true;
 }
 
 function objectsDiff(oldObj, newObj) {
@@ -409,6 +427,9 @@ function objectsDiff(oldObj, newObj) {
       (key) => key in oldObj && oldObj[key] !== newObj[key]
     )
   }
+}
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
 function isNotEmptyString(str) {
@@ -559,7 +580,7 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
 }
 function patchComponent(oldVdom, newVdom) {
   const { component } = oldVdom;
-  const { props } = newVdom;
+  const { props } = extractPropsAndEvents(newVdom);
   component.updateProps(props);
   newVdom.component = component;
   newVdom.el = component.firstElement;
@@ -571,37 +592,196 @@ function toClassList(classes = "") {
       classes.split(/(\s+)/).filter(isNotBlankOrEmptyString);
 }
 
-function createApp({ state, view, reducers = {} }) {
-  let parentEl = null;
-  let vdom = null;
-  const dispatcher = new Dispatcher();
-  const subscriptions = [dispatcher.afterEveryCommand(renderApp)];
-  function emit(eventName, payload) {
-    dispatcher.dispatch(eventName, payload);
-  }
-  for (const actionName in reducers) {
-    const reducer = reducers[actionName];
-    const subs = dispatcher.subscribe(actionName, (payload) => {
-      state = reducer(state, payload);
-    });
-    subscriptions.push(subs);
-  }
-  function renderApp() {
-    const newVdom  = view(state, emit);
-    vdom = patchDOM(vdom, newVdom, parentEl);
-  }
-  return {
-    mount(_parentEl) {
-      parentEl = _parentEl;
-      vdom = view(state, emit);
-      mountDOM(vdom, parentEl);
-    },
-    unmount() {
-      destroyDOM(vdom);
-      vdom = null;
-      subscriptions.forEach((unsubsribe) => unsubsribe());
+function getDefaultExportFromCjs (x) {
+	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
+}
+
+var fastDeepEqual;
+var hasRequiredFastDeepEqual;
+function requireFastDeepEqual () {
+	if (hasRequiredFastDeepEqual) return fastDeepEqual;
+	hasRequiredFastDeepEqual = 1;
+	fastDeepEqual = function equal(a, b) {
+	  if (a === b) return true;
+	  if (a && b && typeof a == 'object' && typeof b == 'object') {
+	    if (a.constructor !== b.constructor) return false;
+	    var length, i, keys;
+	    if (Array.isArray(a)) {
+	      length = a.length;
+	      if (length != b.length) return false;
+	      for (i = length; i-- !== 0;)
+	        if (!equal(a[i], b[i])) return false;
+	      return true;
+	    }
+	    if (a.constructor === RegExp) return a.source === b.source && a.flags === b.flags;
+	    if (a.valueOf !== Object.prototype.valueOf) return a.valueOf() === b.valueOf();
+	    if (a.toString !== Object.prototype.toString) return a.toString() === b.toString();
+	    keys = Object.keys(a);
+	    length = keys.length;
+	    if (length !== Object.keys(b).length) return false;
+	    for (i = length; i-- !== 0;)
+	      if (!Object.prototype.hasOwnProperty.call(b, keys[i])) return false;
+	    for (i = length; i-- !== 0;) {
+	      var key = keys[i];
+	      if (!equal(a[key], b[key])) return false;
+	    }
+	    return true;
+	  }
+	  return a!==a && b!==b;
+	};
+	return fastDeepEqual;
+}
+
+var fastDeepEqualExports = requireFastDeepEqual();
+var equal = /*@__PURE__*/getDefaultExportFromCjs(fastDeepEqualExports);
+
+class Dispatcher {
+  #subs = new Map()
+  #afterHandlers = []
+  subscribe(commandName, handler) {
+    if (!this.#subs.has(commandName)) {
+      this.#subs.set(commandName, []);
     }
+    const handlers = this.#subs.get(commandName);
+    if (handlers.includes(handler)) {
+      return () => {}
+    }
+    handlers.push(handler);
+    return () => {
+      const idx = handlers.indexOf(handler);
+      handlers.splice(idx, 1);
+    }
+  }
+  afterEveryCommand(handler) {
+    this.#afterHandlers.push(handler);
+    return () => {
+      const idx = this.#afterHandlers.indexOf(handler);
+      this.#afterHandlers.splice(idx, 1);
+    }
+  }
+  dispatch(commandName, payload) {
+    if (this.#subs.has(commandName)) {
+      this.#subs.get(commandName).forEach((handler) => handler(payload));
+    } else {
+      console.warn(`No handlers for command: ${commandName}`);
+    }
+    this.#afterHandlers.forEach((handler) => handler());
   }
 }
 
-export { createApp, h, hFragment, hString };
+function defineComponent({ render, state, ...methods }) {
+  class Component {
+    #isMounted = false;
+    #vdom = null;
+    #hostEl = null;
+    #eventHandlers = null;
+    #parentComponent = null;
+    #dispatcher = new Dispatcher();
+    #subscriptions = [];
+    constructor(
+      props = {},
+      eventHandlers = {},
+      parentComponent = null
+    ) {
+      this.props = props;
+      this.state = state ? state(props) : {};
+      this.#eventHandlers = eventHandlers;
+      this.#parentComponent = parentComponent;
+    }
+    get elements() {
+      if (this.#vdom == null) {
+        return [];
+      }
+      if (this.#vdom.type === DOM_TYPES.FRAGMENT) {
+        return extractChildren(this.#vdom).flatMap((child) => {
+          if (child.type === DOM_TYPES.COMPONENT) {
+            return child.component.elements;
+          }
+          return [child.el];
+        });
+      }
+      return [this.#vdom.el];
+    }
+    get firstElement() {
+      return this.elements[0];
+    }
+    get offset() {
+      if (this.#vdom.type === DOM_TYPES.FRAGMENT) {
+        return Array.from(this.#hostEl.children).indexOf(this.firstElement);
+      }
+      return 0;
+    }
+    updateState(state) {
+      this.state = { ...this.state, ...state };
+      this.#patch();
+    }
+    updateProps(props) {
+      const newProps = { ...this.props, ...props };
+      if (equal(this.props, newProps)) {
+        return
+      }
+      this.props = newProps;
+      this.#patch();
+    }
+    render() {
+      return render.call(this);
+    }
+    mount(hostEl, index = null) {
+      if (this.#isMounted) {
+        throw new Error("Component is alreay mounted");
+      }
+      this.#vdom = this.render();
+      mountDOM(this.#vdom, hostEl, index, this);
+      this.#wireEventHandlers();
+      this.#hostEl = hostEl;
+      this.#isMounted = true;
+    }
+    unmount() {
+      if (!this.#isMounted) {
+        throw new Error("Component is not mounted");
+      }
+      destroyDOM(this.#vdom);
+      this.#subscriptions.forEach((unsubcribe) => unsubcribe());
+      this.#vdom = null;
+      this.#hostEl = null;
+      this.#isMounted = false;
+      this.#subscriptions = [];
+    }
+    emit(eventName, payload) {
+      this.#dispatcher.dispatch(eventName, payload);
+    }
+    #patch() {
+      if (!this.#isMounted) {
+        throw new Error("Component is not mounted");
+      }
+      const vdom = this.render();
+      this.#vdom = patchDOM(this.#vdom, vdom, this.#hostEl, this);
+    }
+    #wireEventHandlers() {
+      this.#subscriptions = Object.entries(this.#eventHandlers).map(
+        ([eventName, handler]) =>
+          this.#wireEventHandler(eventName, handler)
+      );
+    }
+    #wireEventHandler(eventName, hanlder) {
+      return this.#dispatcher.subscribe(eventName, (payload) => {
+        if (this.#parentComponent) {
+          hanlder.call(this.#parentComponent, payload);
+        } else {
+          hanlder(payload);
+        }
+      });
+    }
+  }
+  for (const methodName in methods) {
+    if (hasOwnProperty(Component, methodName)) {
+      throw new Error(
+        `Method "${methodName}" already exists in the component.`
+      );
+    }
+    Component.prototype[methodName] = methods[methodName];
+  }
+  return Component;
+}
+
+export { createApp, defineComponent, h, hFragment, hString };

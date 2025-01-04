@@ -212,7 +212,7 @@ function patchComponent(oldVdom, newVdom) {
   // extract component and props from virtual node.
   const { component } = oldVdom;
   // extract props.
-  const { props } = extractPropsAndEvent(newVdom);
+  const { props } = extractPropsAndEvents(newVdom);
   // update component's props.
   component.updateProps(props);
 
