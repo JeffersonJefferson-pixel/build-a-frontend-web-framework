@@ -1,11 +1,11 @@
-function addEventListener(eventName, handler, el, hostComponent) {
+function addEventListener(eventName, handler, el, hostComponent = null) {
   function boundHandler() {
     hostComponent
       ? handler.apply(hostComponent, arguments)
       : handler(...arguments);
   }
   el.addEventListener(eventName, boundHandler);
-  return handler;
+  return boundHandler;
 }
 function addEventListeners(listeners = {}, el, hostComponent = null) {
   const addedListeners = {};
@@ -196,8 +196,12 @@ function extractChildren(vdom) {
   }
   return children
 }
+function isComponent({  tag }) {
+  return typeof tag === 'function'
+}
 
 function destroyDOM(vdom) {
+  console.log('destroying dom: {}', vdom);
   const { type } = vdom;
   switch (type) {
     case DOM_TYPES.TEXT: {
@@ -290,6 +294,7 @@ function removeAttribute(el, name) {
 }
 
 function mountDOM(vdom, parentEl, index, hostComponent = null) {
+  console.log('mounting dom: ', vdom);
   switch (vdom.type) {
     case DOM_TYPES.TEXT: {
       createTextNode(vdom, parentEl, index);
@@ -328,13 +333,14 @@ function createElementNode(vdom, parentEl, index, hostComponent) {
   const element = document.createElement(tag);
   addProps(element, vdom, hostComponent);
   vdom.el = element;
-  children.forEach((child) => mountDOM(child, element, hostComponent));
+  children.forEach((child) => mountDOM(child, element, null, hostComponent));
   insert(element, parentEl, index);
 }
 function createComponentNode(vdom, parentEl, index, hostComponent) {
-  const Component = vdom.tag;
+  const { tag: Component, children } = vdom;
   const { props, events  } = extractPropsAndEvents(vdom);
   const component = new Component(props, events, hostComponent);
+  component.setChildren(children);
   component.mount(parentEl, index);
   vdom.component = component;
   vdom.el = component.firstElement;
@@ -440,6 +446,7 @@ function isNotBlankOrEmptyString(str) {
 }
 
 function patchDOM(oldVdom, newVdom, parentEl, hostComponent = null) {
+  console.log('patching dom: ', oldVdom, newVdom);
   if (!areNodesEqual(oldVdom, newVdom)) {
     const index = findIndexInParent(parentEl, oldVdom.el);
     destroyDOM(oldVdom);
@@ -560,10 +567,14 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
       case ARRAY_DIFF_OP.MOVE: {
         const oldChild = oldChildren[originalIndex];
         const newChild = newChildren[index];
-        const el = oldChild.el;
-        const elAtTargetIndex = parentEl.childNodes[index];
-        parentEl.insertBefore(el, elAtTargetIndex);
-        patchDOM(oldChild, newChild, parentEl, hostComponent);
+        const elAtTargetIndex = parentEl.childNodes[index + offset];
+        const elementsToMove = isComponent(oldChild)
+          ? oldChild.component.elements
+          : [oldChild.el];
+        elementsToMove.forEach((el) => {
+          parentEl.insertBefore(el, elAtTargetIndex);
+          patchDOM(oldChild, newChild, parentEl, hostComponent);
+        });
         break;
       }
       case ARRAY_DIFF_OP.NOOP: {
@@ -580,7 +591,9 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
 }
 function patchComponent(oldVdom, newVdom) {
   const { component } = oldVdom;
+  const {  children } = newVdom;
   const { props } = extractPropsAndEvents(newVdom);
+  component.setChildren(children);
   component.updateProps(props);
   newVdom.component = component;
   newVdom.el = component.firstElement;
@@ -678,6 +691,7 @@ function defineComponent({ render, state, ...methods }) {
     #parentComponent = null;
     #dispatcher = new Dispatcher();
     #subscriptions = [];
+    #children = [];
     constructor(
       props = {},
       eventHandlers = {},
@@ -687,6 +701,9 @@ function defineComponent({ render, state, ...methods }) {
       this.state = state ? state(props) : {};
       this.#eventHandlers = eventHandlers;
       this.#parentComponent = parentComponent;
+    }
+    get parentComponent() {
+      return this.#parentComponent
     }
     get elements() {
       if (this.#vdom == null) {
@@ -714,6 +731,9 @@ function defineComponent({ render, state, ...methods }) {
     updateState(state) {
       this.state = { ...this.state, ...state };
       this.#patch();
+    }
+    setChildren(children) {
+      this.#children = children;
     }
     updateProps(props) {
       const newProps = { ...this.props, ...props };

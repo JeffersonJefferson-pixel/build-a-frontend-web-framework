@@ -160,14 +160,17 @@ const TodoItem = defineComponent({
         ),
         h(
           'button', 
-          { on: { click: this.cancelEdition } }
+          { on: {
+             click: this.cancelEdition 
+            } 
+          },
           ['Cancel']
         )
       ]
     )
   },
 
-  saveEditon() {
+  saveEdition() {
     this.updateState({ original: this.state.edited, isEditing: false })
     this.emit('edit', { edited: this.state.edited, i: this.props.i })
   },

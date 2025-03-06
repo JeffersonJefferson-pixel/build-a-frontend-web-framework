@@ -4,6 +4,7 @@ import { setAttributes } from "./attributes";
 import { addEventListeners } from "./events";
 
 export function mountDOM(vdom, parentEl, index, hostComponent = null) {
+  console.log('mounting dom: ', vdom)
   switch (vdom.type) {
     case DOM_TYPES.TEXT: {
       createTextNode(vdom, parentEl, index);
@@ -54,17 +55,18 @@ function createElementNode(vdom, parentEl, index, hostComponent) {
   addProps(element, vdom, hostComponent);
   vdom.el = element;
 
-  children.forEach((child) => mountDOM(child, element, hostComponent));
+  children.forEach((child) => mountDOM(child, element, null, hostComponent));
   insert(element, parentEl, index)
 }
 
 function createComponentNode(vdom, parentEl, index, hostComponent) {
   // extract component from virtual node.
-  const Component = vdom.tag;
+  const { tag: Component, children } = vdom;
   // extract props and events.
   const { props, events  } = extractPropsAndEvents(vdom);
   // instantiate component.
   const component = new Component(props, events, hostComponent);
+  component.setChildren(children)
 
   // mount component.
   component.mount(parentEl, index);

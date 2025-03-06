@@ -2,6 +2,7 @@ import { removeEventListeners } from './events'
 import { DOM_TYPES } from './h'
 
 export function destroyDOM(vdom) {
+  console.log('destroying dom: {}', vdom)
   const { type } = vdom
 
   switch (type) {

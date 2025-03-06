@@ -1,4 +1,4 @@
-export function addEventListener(eventName, handler, el, hostComponent) {
+export function addEventListener(eventName, handler, el, hostComponent = null) {
   function boundHandler() {
     hostComponent
       ? handler.apply(hostComponent, arguments) // bind host component to event handler context
@@ -6,7 +6,7 @@ export function addEventListener(eventName, handler, el, hostComponent) {
   }
 
   el.addEventListener(eventName, boundHandler);
-  return handler;
+  return boundHandler;
 }
 
 export function addEventListeners(listeners = {}, el, hostComponent = null) {

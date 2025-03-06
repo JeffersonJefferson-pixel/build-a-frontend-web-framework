@@ -1,4 +1,4 @@
-import { beforeEach, test, expect, describe } from 'vitest';
+import { beforeEach, test, expect, describe, vi } from 'vitest';
 import { h, hFragment, hString } from "../h";
 import { mountDOM } from "../mount-dom";
 import { patchDOM } from "../patch-dom";
@@ -60,7 +60,55 @@ describe('patch attributes', () => {
     })
 });
 
-function patch(oldVdom, newVdom, hostComponent = null) {
-    mountDOM(oldVdom, document.body);
+describe('patch class', () => {
+    test('from no class', () => {
+        const oldVdom = h('div', {})
+        const newVdom = h('div', { class: 'foo' })
+
+        patch(oldVdom, newVdom)
+
+        expect(document.body.innerHTML).toEqual('<div class="foo"></div>')
+    })
+})
+
+describe('patch style', () => {
+    test('add style', () => {
+        const oldVdom = h('div')
+        const newVdom = h('div', { style: { color: 'red' } })
+
+        patch(oldVdom, newVdom)
+
+        expect(document.body.innerHTML).toBe('<div style="color: red;"></div>')
+    })
+
+    test('remove style', () => {
+        const oldVdom = h('div', { style: { color: 'red' } })
+        const newVdom = h('div')
+
+        patch(oldVdom, newVdom);
+        expect(document.body.innerHTML).toBe('<div style=""></div>')
+    })
+})
+
+describe('patch event handler', () => {
+    test('update event handler', async () => {
+        const oldHandler = vi.fn()
+        const oldVdom = h('button', { on: { click: oldHandler } }, ['Click me'])
+
+        const newHandler = vi.fn()
+        const newVdom = h('button', { on: { click: newHandler } }, ['Click me'])
+
+        await patch(oldVdom, newVdom)
+
+        document.body.querySelector('button').click()
+
+        expect(oldHandler).not.toHaveBeenCalled()
+        expect(newHandler).toHaveBeenCalled()
+        expect(newVdom.listeners).not.toBeUndefined()
+    })
+})
+
+async function patch(oldVdom, newVdom, hostComponent = null) {
+    await mountDOM(oldVdom, document.body);
     return patchDOM(oldVdom, newVdom, document.body, hostComponent);
 }

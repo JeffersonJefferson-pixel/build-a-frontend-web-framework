@@ -1,5 +1,5 @@
 import { destroyDOM } from "./destroy-dom";
-import { DOM_TYPES, extractChildren } from "./h";
+import { DOM_TYPES, extractChildren , isComponent} from "./h";
 import { mountDOM } from "./mount-dom";
 import { areNodesEqual } from "./nodes-equal";
 import { objectsDiff } from "./utils/objects";
@@ -11,6 +11,7 @@ import { removeStyle, setStyle } from "./attributes";
 import { addEventListener } from "./events";
 
 export function patchDOM(oldVdom, newVdom, parentEl, hostComponent = null) {
+  console.log('patching dom: ', oldVdom, newVdom)
   if (!areNodesEqual(oldVdom, newVdom)) {
     // finds the index in the parent node where the old node is
     const index = findIndexInParent(parentEl, oldVdom.el);
@@ -169,7 +170,7 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
 
     switch (operation.op) {
       case ARRAY_DIFF_OP.ADD: {
-        mountDOM(item, parentEl, index + offset, hostComponent, hostComponent);
+        mountDOM(item, parentEl, index + offset, hostComponent);
         break;
       }
 
@@ -184,14 +185,20 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
         // gets the new virtual node at the new index
         const newChild = newChildren[index];
         // gets the dom element associated with the moved node
-        const el = oldChild.el;
         // finds the element at the target index inside the parent element
-        const elAtTargetIndex = parentEl.childNodes[index];
+        const elAtTargetIndex = parentEl.childNodes[index + offset];
 
-        // inserts the moved element before the target element
-        parentEl.insertBefore(el, elAtTargetIndex);
-        // recursively patches the moved element
-        patchDOM(oldChild, newChild, parentEl, hostComponent);
+        const elementsToMove = isComponent(oldChild) 
+          ? oldChild.component.elements
+          : [oldChild.el];
+
+        elementsToMove.forEach((el) => {
+          // inserts the moved element before the target element
+          parentEl.insertBefore(el, elAtTargetIndex);
+          // recursively patches the moved element
+          patchDOM(oldChild, newChild, parentEl, hostComponent);
+        });
+
         break;
       }
 
@@ -211,9 +218,11 @@ function patchChildren(oldVdom, newVdom, hostComponent) {
 function patchComponent(oldVdom, newVdom) {
   // extract component and props from virtual node.
   const { component } = oldVdom;
+  const {  children } = newVdom;
   // extract props.
   const { props } = extractPropsAndEvents(newVdom);
   // update component's props.
+  component.setChildren(children)
   component.updateProps(props);
 
   newVdom.component = component;

@@ -57,6 +57,11 @@ export function extractChildren(vdom) {
   return children
 }
 
+export function isComponent({  tag }) {
+  return typeof tag === 'function'
+}
+
+
 export function lipsum(n) {
   const text = `Lorem ipsum dolor sit amet, consectetur adipisc
     ing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim

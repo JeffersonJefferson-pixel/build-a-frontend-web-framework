@@ -16,6 +16,7 @@ export function defineComponent({ render, state, ...methods }) {
     #dispatcher = new Dispatcher();
     // array of unsubscribe functions.
     #subscriptions = [];
+    #children = [];
 
     constructor(
       props = {}, 
@@ -26,6 +27,10 @@ export function defineComponent({ render, state, ...methods }) {
       this.state = state ? state(props) : {};
       this.#eventHandlers = eventHandlers;
       this.#parentComponent = parentComponent
+    }
+
+    get parentComponent() {
+      return this.#parentComponent
     }
 
     get elements() {
@@ -65,6 +70,10 @@ export function defineComponent({ render, state, ...methods }) {
       this.state = { ...this.state, ...state };
       // patch based on new state
       this.#patch();
+    }
+
+    setChildren(children) {
+      this.#children = children
     }
 
     updateProps(props) {
