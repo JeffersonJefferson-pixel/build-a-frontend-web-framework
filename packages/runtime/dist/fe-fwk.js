@@ -200,6 +200,32 @@ function isComponent({  tag }) {
   return typeof tag === 'function'
 }
 
+let isScheduled = false;
+const jobs = [];
+function enqueueJob(job) {
+    jobs.push(job);
+    scheduleUpdate();
+}
+function scheduleUpdate() {
+    if (isScheduled) return
+    isScheduled = true;
+    queueMicrotask(processJobs);
+}
+function processJobs() {
+    while (jobs.length > 0) {
+        const job = jobs.shift();
+        const result = job();
+        Promise.resolve(result).then(
+            () => {
+            },
+            (error) => {
+                console.error(`[scheduler]: ${error}`);
+            }
+        );
+    }
+    isScheduled = false;
+}
+
 function destroyDOM(vdom) {
   console.log('destroying dom: {}', vdom);
   const { type } = vdom;
@@ -218,6 +244,7 @@ function destroyDOM(vdom) {
     }
     case DOM_TYPES.COMPONENT: {
       vdom.component.unmount();
+      enqueueJob(() => vdom.component.onUnmounted());
       break;
     }
     default: {
@@ -310,6 +337,7 @@ function mountDOM(vdom, parentEl, index, hostComponent = null) {
     }
     case DOM_TYPES.COMPONENT: {
       createComponentNode(vdom, parentEl, index, hostComponent);
+      enqueueJob(() => vdom.component.onMounted());
       break;
     }
     default: {
@@ -682,7 +710,14 @@ class Dispatcher {
   }
 }
 
-function defineComponent({ render, state, ...methods }) {
+const emptyFn = () => {};
+function defineComponent({
+  render,
+  state,
+  onMounted = emptyFn,
+  onUnmounted = emptyFn,
+  ...methods
+}) {
   class Component {
     #isMounted = false;
     #vdom = null;
@@ -727,6 +762,12 @@ function defineComponent({ render, state, ...methods }) {
         return Array.from(this.#hostEl.children).indexOf(this.firstElement);
       }
       return 0;
+    }
+    onMounted() {
+      return Promise.resolve(onMounted.call(this))
+    }
+    onUnmounted() {
+      return Promise.resolve(onUnmounted.call(this))
     }
     updateState(state) {
       this.state = { ...this.state, ...state };

@@ -6,7 +6,15 @@ import { hasOwnProperty } from "./utils/objects";
 import equal from 'fast-deep-equal';
 import { Dispatcher } from './dispatcher';
 
-export function defineComponent({ render, state, ...methods }) {
+const emptyFn = () => {}
+
+export function defineComponent({ 
+  render, 
+  state,
+  onMounted = emptyFn,
+  onUnmounted = emptyFn, 
+  ...methods 
+}) {
   class Component {
     #isMounted = false;
     #vdom = null;
@@ -63,6 +71,15 @@ export function defineComponent({ render, state, ...methods }) {
       }
 
       return 0;
+    }
+
+    onMounted() {
+      // bind function to component instance.
+      return Promise.resolve(onMounted.call(this))
+    }
+
+    onUnmounted() {
+      return Promise.resolve(onUnmounted.call(this))
     }
 
     updateState(state) {
