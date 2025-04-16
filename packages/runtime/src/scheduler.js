@@ -34,3 +34,14 @@ function processJobs() {
 
     isScheduled = false
 }
+
+export function nextTick() {
+    scheduleUpdate()
+    // schedule a task whose callback resolve a promise.
+    // this make sure resolve only promise returned by nextTick() function when all jobs in scheduler finish executing.
+    return flushPromises()
+} 
+
+function flushPromises() {
+    return new Promise((resolve) => setTimeout(resolve))
+}
