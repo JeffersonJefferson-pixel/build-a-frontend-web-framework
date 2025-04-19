@@ -1,8 +1,9 @@
 import { destroyDOM } from "./destroy-dom";
-import { DOM_TYPES, extractChildren } from "./h";
+import { DOM_TYPES, extractChildren, didCreateSlot, resetDidCreateSlot } from "./h";
 import { mountDOM } from "./mount-dom";
 import { patchDOM } from "./patch-dom";
 import { hasOwnProperty } from "./utils/objects";
+import { fillSlots } from './slots'
 import equal from 'fast-deep-equal';
 import { Dispatcher } from './dispatcher';
 
@@ -75,11 +76,11 @@ export function defineComponent({
 
     onMounted() {
       // bind function to component instance.
-      return Promise.resolve(onMounted.call(this))
+      return Promise.resolve(onMounted.call(this));
     }
 
     onUnmounted() {
-      return Promise.resolve(onUnmounted.call(this))
+      return Promise.resolve(onUnmounted.call(this));
     }
 
     updateState(state) {
@@ -89,8 +90,8 @@ export function defineComponent({
       this.#patch();
     }
 
-    setChildren(children) {
-      this.#children = children
+    setExternalContent(children) {
+      this.#children = children;
     }
 
     updateProps(props) {
@@ -106,7 +107,17 @@ export function defineComponent({
     }
 
     render() {
-      return render.call(this);
+      // hSlotCalled depends on whether component render method calls hSlot() function.
+      const vdom = render.call(this);
+
+      // only fill slots when needed.
+      if (didCreateSlot()) {
+        // replace virtual slot node with external content.
+        fillSlots(vdom, this.#children);
+        resetDidCreateSlot();
+      }
+
+      return vdom;
     }
 
     mount(hostEl, index = null) {

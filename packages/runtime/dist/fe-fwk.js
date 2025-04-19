@@ -157,7 +157,8 @@ const DOM_TYPES = {
   TEXT: "text",
   ELEMENT: "element",
   FRAGMENT: "fragment",
-  COMPONENT: "component"
+  COMPONENT: "component",
+  SLOT: "slot",
 };
 function h(tag, props = {}, children = []) {
   const type = typeof tag === 'string' ? DOM_TYPES.ELEMENT : DOM_TYPES.COMPONENT;
@@ -368,7 +369,7 @@ function createComponentNode(vdom, parentEl, index, hostComponent) {
   const { tag: Component, children } = vdom;
   const { props, events  } = extractPropsAndEvents(vdom);
   const component = new Component(props, events, hostComponent);
-  component.setChildren(children);
+  component.setExternalContent(children);
   component.mount(parentEl, index);
   vdom.component = component;
   vdom.el = component.firstElement;
@@ -621,7 +622,7 @@ function patchComponent(oldVdom, newVdom) {
   const { component } = oldVdom;
   const {  children } = newVdom;
   const { props } = extractPropsAndEvents(newVdom);
-  component.setChildren(children);
+  component.setExternalContent(children);
   component.updateProps(props);
   newVdom.component = component;
   newVdom.el = component.firstElement;
@@ -764,16 +765,16 @@ function defineComponent({
       return 0;
     }
     onMounted() {
-      return Promise.resolve(onMounted.call(this))
+      return Promise.resolve(onMounted.call(this));
     }
     onUnmounted() {
-      return Promise.resolve(onUnmounted.call(this))
+      return Promise.resolve(onUnmounted.call(this));
     }
     updateState(state) {
       this.state = { ...this.state, ...state };
       this.#patch();
     }
-    setChildren(children) {
+    setExternalContent(children) {
       this.#children = children;
     }
     updateProps(props) {
@@ -785,7 +786,8 @@ function defineComponent({
       this.#patch();
     }
     render() {
-      return render.call(this);
+      const vdom = render.call(this);
+      return vdom;
     }
     mount(hostEl, index = null) {
       if (this.#isMounted) {

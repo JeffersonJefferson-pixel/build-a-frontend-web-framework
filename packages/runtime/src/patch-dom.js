@@ -222,7 +222,7 @@ function patchComponent(oldVdom, newVdom) {
   // extract props.
   const { props } = extractPropsAndEvents(newVdom);
   // update component's props.
-  component.setChildren(children)
+  component.setExternalContent(children)
   component.updateProps(props);
 
   newVdom.component = component;

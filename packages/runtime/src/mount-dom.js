@@ -69,7 +69,7 @@ function createComponentNode(vdom, parentEl, index, hostComponent) {
   const { props, events  } = extractPropsAndEvents(vdom);
   // instantiate component.
   const component = new Component(props, events, hostComponent);
-  component.setChildren(children)
+  component.setExternalContent(children)
 
   // mount component.
   component.mount(parentEl, index);
