@@ -153,6 +153,7 @@ function arraysDiffSequence(oldArray, newArray, equalsFn = (a, b) => a === b) {
   return sequence
 }
 
+let hSlotCalled = false;
 const DOM_TYPES = {
   TEXT: "text",
   ELEMENT: "element",
@@ -182,6 +183,16 @@ function hFragment(vNodes) {
     type: DOM_TYPES.FRAGMENT,
     children: mapTextNodes(withoutNulls(vNodes)),
   };
+}
+function hSlot(children = []) {
+  hSlotCalled = true;
+  return { type: DOM_TYPES.SLOT, children }
+}
+function didCreateSlot() {
+  return hSlotCalled
+}
+function resetDidCreateSlot() {
+  hSlotCalled = false;
 }
 function extractChildren(vdom) {
   if (vdom.children == null) {
@@ -634,6 +645,37 @@ function toClassList(classes = "") {
       classes.split(/(\s+)/).filter(isNotBlankOrEmptyString);
 }
 
+function traverseDFS(vdom, processNode, shouldSkipBranch = () => false, parentNode = null, index = null) {
+    if (shouldSkipBranch(vdom)) return;
+    processNode(vdom, parentNode, index);
+    if (vdom.children) {
+        vdom.children.forEach((child, i) => {
+            traverseDFS(child, processNode, shouldSkipBranch, vdom, i);
+        });
+    }
+}
+
+function fillSlots(vdom, externalContent = []) {
+    function processNode(node, parent, index) {
+        insertViewInSlot(node, parent, index, externalContent);
+    }
+    traverseDFS(vdom, processNode, shouldSkipBranch);
+}
+function insertViewInSlot(node, parent, index, externalContent) {
+    if (node.type !== DOM_TYPES.SLOT) return;
+    const defaultContent = node.children;
+    const views = externalContent.length > 0 ? externalContent : defaultContent;
+    const hasContent = views.length > 0;
+    if (hasContent) {
+        parent.children.splice(index, 1, hFragment(views));
+    } else {
+        parent.children.splice(index, 1);
+    }
+}
+function shouldSkipBranch(node) {
+    return node.type === DOM_TYPES.COMPONENT;
+}
+
 function getDefaultExportFromCjs (x) {
 	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
 }
@@ -787,6 +829,10 @@ function defineComponent({
     }
     render() {
       const vdom = render.call(this);
+      if (didCreateSlot()) {
+        fillSlots(vdom, this.#children);
+        resetDidCreateSlot();
+      }
       return vdom;
     }
     mount(hostEl, index = null) {
@@ -847,4 +893,4 @@ function defineComponent({
   return Component;
 }
 
-export { createApp, defineComponent, h, hFragment, hString };
+export { createApp, defineComponent, h, hFragment, hSlot, hString };

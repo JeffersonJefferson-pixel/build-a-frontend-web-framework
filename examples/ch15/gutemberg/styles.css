@@ -1,0 +1,17 @@
+body {
+    width: 800px;
+    margin: 2em auto;
+}
+
+.table-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2em;
+}
+
+.filters-box {
+    padding: 1em 2em;
+    border: 1px solid var(--text-main);
+    border-radius: 0.5em;
+}
