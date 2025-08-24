@@ -53,7 +53,7 @@ export class HashRouter {
     }
 
     // navigate to route with given path
-    navigateTo(path) {
+    async navigateTo(path) {
         // find route that matches path.
         const matcher = this.#matchers.find((matcher) => matcher.checkMatch(path));
 
@@ -73,13 +73,24 @@ export class HashRouter {
             return this.navigateTo(matcher.route.redirect);
         }
 
-        // save route, params, query
-        this.#matchedRoute = matcher.route;
-        this.#params = matcher.extractParams(path);
-        this.#query = matcher.extractQuery(path);
+        // route guard
+        const from = this.#matchedRoute;
+        const to = matcher.route;
+        const { shouldNavigate, shouldRedirect, redirectPath } = await this.#canChangeRoute(from, to);
 
-        // push new path to browser history.
-        this.#pushState(path);
+        if (shouldRedirect) {
+            return this.navigateTo(redirectPath);
+        }
+
+        if (shouldNavigate) {
+            // save route, params, query
+            this.#matchedRoute = matcher.route;
+            this.#params = matcher.extractParams(path);
+            this.#query = matcher.extractQuery(path);
+
+            // push new path to browser history.
+            this.#pushState(path);
+        }
     }
 
     // go back in browser history
@@ -109,5 +120,42 @@ export class HashRouter {
 
     #pushState(path) {
         window.history.pushState({}, '', `#${path}`);
+    }
+
+    async #canChangeRoute(from, to) {
+        // get beforeEnter function in destination route. 
+        const guard = to.beforeEnter;
+
+        if (typeof guard !== 'function') {
+            return {
+                shouldRedirect: false,
+                shouldNavigate: true,
+                redirectPath: null,
+            }
+        }
+
+        // evaluate guard function.
+        const result = await guard(from?.path, to?.path);
+        if (result === false) {
+            return {
+                shouldRedirect: false,
+                shouldNavigate: false,
+                redirectPath: null,
+            }
+        }
+
+        if (typeof result === 'string') {
+            return {
+                shouldRedirect: true,
+                shouldNavigate: false,
+                redirectPath: result,
+            } 
+        }
+
+        return {
+            shouldRedirect: false,
+            shouldNavigate: true,
+            redirectPath: null,
+        } 
     }
 }
