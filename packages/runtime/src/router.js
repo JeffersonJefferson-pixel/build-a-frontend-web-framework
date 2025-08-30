@@ -1,4 +1,7 @@
+import { Dispatcher } from './dispatcher';
 import { makeRouteMatcher  }  from "./route-matchers";
+
+const ROUTER_EVENT = 'router-event';
 
 export class HashRouter {
     #matchers = [];
@@ -15,6 +18,9 @@ export class HashRouter {
     get query() {
         return this.#query;
     }
+    #dispatcher = new Dispatcher();
+    #subscriptions = new WeakMap();
+    #subscriberFns = new Set();
     #onPopState = () => this.#matchCurrentRoute();
 
     constructor(routes = []) {
@@ -48,6 +54,7 @@ export class HashRouter {
 
         // remove event listener
         window.removeEventListener('popstate', this.#onPopState);
+        Array.from(this.#subscriberFns).forEach(this.unsubscribe, this);
 
         this.#isInitialized = false;
     }
@@ -90,6 +97,9 @@ export class HashRouter {
 
             // push new path to browser history.
             this.#pushState(path);
+
+            // emit event
+            this.#dispatcher.dispatch(ROUTER_EVENT, { from, to, router: this });
         }
     }
 
@@ -101,6 +111,21 @@ export class HashRouter {
     // go forward in browser history
     forward() {
         window.history.forward();
+    }
+
+    subscribe(handler) {
+        const unsubscribe = this.#dispatcher.subscribe(ROUTER_EVENT, handler);
+        this.#subscriptions.set(handler, unsubscribe);
+        this.#subscriberFns.add(handler);
+    }
+
+    unsubscribe(handler) {
+        const unsubscribe = this.#subscriptions.get(handler);
+        if (unsubscribe) {
+            unsubscribe();
+            this.#subscriptions.delete(handler);
+            this.#subscriberFns.delete(handler);
+        }
     }
 
     #matchCurrentRoute() {
@@ -158,4 +183,14 @@ export class HashRouter {
             redirectPath: null,
         } 
     }
+}
+
+export class NoopRouter {
+    init() {}
+    destroy() {}
+    navigateTo() {}
+    back() {}
+    forward() {}
+    subscribe() {}
+    unsubscribe() {}
 }
