@@ -26,6 +26,7 @@ export function defineComponent({
     // array of unsubscribe functions.
     #subscriptions = [];
     #children = [];
+    #appContext = null;
 
     constructor(
       props = {}, 
@@ -81,6 +82,14 @@ export function defineComponent({
 
     onUnmounted() {
       return Promise.resolve(onUnmounted.call(this));
+    }
+
+    setAppContext(appContext) {
+      this.#appContext = appContext;
+    }
+
+    get appContext() {
+      return this.#appContext;
     }
 
     updateState(state) {

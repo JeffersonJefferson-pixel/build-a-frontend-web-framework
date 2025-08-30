@@ -1,11 +1,16 @@
 import { destroyDOM } from "./destroy-dom";
 import { mountDOM } from "./mount-dom";
 import { h } from "./h";
+import { NoopRouter } from "./router";
 
-export function createApp(RootComponent, props = {}) {
+export function createApp(RootComponent, props = {}, options = {}) {
   let parentEl = null
   let isMounted = false
   let vdom = null
+
+  const context = {
+    router: options.router || new NoopRouter(),
+  }
 
   function reset() {
     parentEl = null
@@ -24,7 +29,9 @@ export function createApp(RootComponent, props = {}) {
       // create virtual dom for root component.
       vdom = h(RootComponent, props);
       // mount component in parent element.
-      mountDOM(vdom, parentEl)
+      mountDOM(vdom, parentEl, null, { appContext: context });
+
+      context.router.init();
 
       isMounted = true
     },
@@ -34,7 +41,8 @@ export function createApp(RootComponent, props = {}) {
       if (!isMounted) {
         throw new Error('The application is not mounted')
       }
-      destroyDOM(vdom)
+      destroyDOM(vdom);
+      context.router.destroy();
       reset()
     }
   }
